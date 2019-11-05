@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="../resources/runner.js"></script>
+</head>
+<body>
+<script>
+
+const params = (new URL(document.location)).searchParams;
+const iteration = params.get("iteration") || 6;
+
+function randomValuesArrayBuffer(length)
+{
+  const array = new Uint8Array(length);
+  // crypto.getRandomValues has a quota. See
+  // https://www.w3.org/TR/WebCryptoAPI/#Crypto-method-getRandomValues.
+  const cryptoQuota = 65535;
+  let index = 0;
+  const buffer = array.buffer;
+  while(index < buffer.byteLength) {
+    const bufferView = array.subarray(index, index + cryptoQuota);
+    window.crypto.getRandomValues(bufferView);
+    index += cryptoQuota;
+  }
+  return buffer;
+}
+
+async function runTestCase() {
+  PerfTestRunner.addRunTestStartMarker();
+  const bigStream = new ReadableStream({start: controller => {
+    const array1MB = randomValuesArrayBuffer(100*1000*1000);
+    controller.enqueue(array1MB);
+    controller.close();
+  }});
+  const writableStream = new WritableStream({
+    undefined,
+    write(chunk, controller) {},
+    close(controller) {
+      PerfTestRunner.log("done");
+    }
+  });
+  const start = PerfTestRunner.now();
+  PerfTestRunner.log("start await");
+  await bigStream
+    .pipeTo(writableStream);
+  PerfTestRunner.log("done await");
+  PerfTestRunner.addRunTestEndMarker();
+  const end = PerfTestRunner.now();
+  PerfTestRunner.measureValueAsync(end -start);
+}
+
+let isDone = false;
+PerfTestRunner.startMeasureValuesAsync({
+  description: "Measure performance of read and write 1MB array 100 times.",
+  unit: 'millseconds',
+  done: function () {
+    isDone = true;
+  },
+  run: async function() {
+    while (!isDone) await runTestCase();
+  },
+  iterationCount: iteration,
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="../resources/runner.js"></script>
+</head>
+<body>
+<script>
+
+const params = (new URL(document.location)).searchParams;
+const iteration = params.get("iteration") || 6;
+
+
+async function runTestCase() {
+  PerfTestRunner.addRunTestStartMarker();
+  const bigStream = new ReadableStream({start: controller => {
+    for (i=0;i<1000*10;i++) {
+      controller.enqueue({});
+    }
+    controller.close();
+  }});
+  const transformStream = new TransformStream({
+    start(controller) {},
+    transform(chunk, controller) {
+      controller.enqueue(chunk);
+    },
+    flush(controller) {}
+  });
+  const transformStream2 = new TransformStream({
+    start(controller) {},
+    transform(chunk, controller) {
+      controller.enqueue(chunk);
+    },
+    flush(controller) {}
+  });
+  const writableStream = new WritableStream({
+    undefined,
+    write(chunk, controller) {},
+    close(controller) {}
+  });
+  const start = PerfTestRunner.now();
+  await bigStream
+    .pipeThrough(transformStream)
+    .pipeThrough(transformStream2)
+    .pipeTo(writableStream);
+  const end = PerfTestRunner.now(); 
+  PerfTestRunner.addRunTestEndMarker();  
+  PerfTestRunner.measureValueAsync(end -start);
+}
+
+let isDone = false;
+PerfTestRunner.startMeasureValuesAsync({
+  description: "Measure performance of reading empty 10000 chunks onto TransformStream",
+  unit: 'millseconds',
+  done: function () {
+    isDone = true;
+  },
+  run: async function() {
+    while (!isDone) await runTestCase();
+  },
+  iterationCount: iteration,
+});
+</script>
+</body>
+</html>

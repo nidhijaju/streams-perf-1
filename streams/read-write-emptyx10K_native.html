@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="../resources/runner.js"></script>
+</head>
+<body>
+<script>
+
+const params = (new URL(document.location)).searchParams;
+const iteration = params.get("iteration") || 6;
+
+async function runTestCase() {
+  PerfTestRunner.addRunTestStartMarker();
+  const bigStream = new ReadableStream({start: controller => {
+    for (i=0;i<1000*10;i++) {
+      controller.enqueue({});
+    }
+    controller.close();
+  }});
+  async function readStreamNative(stream) {    
+    const reader = stream.getReader();
+    while(true) {
+      let then = await reader.read();
+      if (then.done) {
+        return;
+      }      
+    }
+  }
+
+  const start = PerfTestRunner.now();
+  await readStreamNative(bigStream);
+  PerfTestRunner.addRunTestEndMarker();
+  const end = PerfTestRunner.now();
+  PerfTestRunner.measureValueAsync(end -start);
+}
+
+let isDone = false;
+PerfTestRunner.startMeasureValuesAsync({
+  description: "Measure performance of reading empty 10000 chunks.",
+  unit: 'millseconds',
+  done: function () {
+    isDone = true;
+  },
+  run: async function() {
+    while (!isDone) await runTestCase();
+  },
+  iterationCount: iteration,
+});
+</script>
+</body>
+</html>
